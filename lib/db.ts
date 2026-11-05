@@ -1,6 +1,7 @@
 import { Database } from "node-sqlite3-wasm";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { ensureSeeded } from "./seed";
 import { applyMigrations, seedCatalog } from "./catalog";
 
@@ -38,16 +39,36 @@ const REGISTRY_SCHEMA_SQL = fs.readFileSync(
   "utf8",
 );
 
+const SEED_DB = path.join(ROOT, ".vercel", "sqlite", "civis-seeded.db");
+
+function writable(dir: string) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.accessSync(dir, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Under Vercel the deployment root is one level above the functions build, so
- * the bundled seed lives at `.vercel/sqlite/civis-seeded.db` relative to the
- * function working directory. Locally we keep creating `data/civis.db`.
+ * Locally the database lives at `data/civis.db`. Serverless hosts (Netlify
+ * Functions, Vercel) ship a read-only bundle, so there the bundled seed is
+ * copied into the system temp directory on cold start and opened from there.
  */
 function defaultDbPath() {
-  if (process.env.VERCEL && fs.existsSync(path.join(ROOT, ".vercel", "sqlite", "civis-seeded.db"))) {
-    return path.join(ROOT, ".vercel", "sqlite", "civis-seeded.db");
+  if (process.env.CIVIS_DB_PATH) return process.env.CIVIS_DB_PATH;
+  const serverless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (!serverless && writable(DATA_DIR)) return path.join(DATA_DIR, "civis.db");
+  const target = path.join(os.tmpdir(), "civis", "civis.db");
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    if (fs.existsSync(SEED_DB)) {
+      fs.copyFileSync(SEED_DB, target);
+      fs.chmodSync(target, 0o644);
+    }
   }
-  return path.join(DATA_DIR, "civis.db");
+  return target;
 }
 
 type Row = Record<string, unknown>;
@@ -88,7 +109,9 @@ export function getDb(): Database {
   return globalForDb.__civisDb.db;
 }
 
-export const dbPath = defaultDbPath();
+export function dbPath() {
+  return globalForDb.__civisDb?.path ?? defaultDbPath();
+}
 
 /** Positional-parameter helpers (the WASM driver has no statement objects). */
 export function all<T = Row>(sql: string, params: unknown[] = []): T[] {

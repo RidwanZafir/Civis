@@ -17,6 +17,7 @@ type Result = {
   asOf: string | null;
   upazilas: string[];
   message: string | null;
+  source?: "registry" | "openstreetmap";
 };
 
 const RADII = [2, 5, 10, 25, 50];
@@ -141,10 +142,48 @@ export function HospitalDirectory({
     };
   }, [mode, q, district, upazila, category, ownership, radius, page, fix]);
 
+  const localItem = useMemo(
+    () => (selectedId?.startsWith("osm:") ? result.items.find((entry) => entry.id === selectedId) ?? null : null),
+    [selectedId, result.items],
+  );
+
   // Detail fetch, with the user's distance when one is known.
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      return;
+    }
+    // Live OpenStreetMap results are not registry records; their details are
+    // already in the search result.
+    if (selectedId.startsWith("osm:")) {
+      const item = localItem;
+      setDetailLoading(false);
+      setDetail(
+        item
+          ? {
+              facility: item,
+              contacts: item.phone
+                ? [
+                    {
+                      id: `${item.id}:phone`,
+                      facilityId: item.id,
+                      departmentCode: "general",
+                      departmentName: "Main line",
+                      contactGroup: "general",
+                      phone: item.phone,
+                      phoneE164: null,
+                      operatingHours: null,
+                      contactType: "voice",
+                      source: "OpenStreetMap",
+                      sourceUrl: item.sourceUrl,
+                      verificationStatus: "unverified",
+                      lastVerifiedAt: null,
+                    },
+                  ]
+                : [],
+            }
+          : null,
+      );
       return;
     }
     const controller = new AbortController();
@@ -158,7 +197,7 @@ export function HospitalDirectory({
       })
       .finally(() => setDetailLoading(false));
     return () => controller.abort();
-  }, [selectedId, fix]);
+  }, [selectedId, localItem, fix]);
 
   const copyNumber = useCallback(async (phone: string) => {
     try {
@@ -251,6 +290,8 @@ export function HospitalDirectory({
               onClick={() => {
                 setMode(value);
                 setPage(1);
+                setSelectedId(null);
+                if (value === "nearby" && !fix && geo.state !== "detecting") void geo.locate();
               }}
               aria-pressed={mode === value}
               className={cx(
@@ -586,7 +627,7 @@ export function HospitalDirectory({
                 </a>
               </div>
 
-              {canManage && (
+              {canManage && !detail.facility.id.startsWith("osm:") && (
                 <form onSubmit={saveContact} className="space-y-2 rounded-xl border border-white/10 bg-ink/60 p-3">
                   <h3 className="text-[11px] font-semibold uppercase tracking-[.14em] text-muted">
                     Publish a department contact
@@ -732,6 +773,9 @@ export function HospitalDirectory({
       )}
 
       <p className="mt-6 text-[11px] leading-relaxed text-muted">
+        {result.source === "openstreetmap"
+          ? "Nearby results come from live OpenStreetMap data, because the official registry does not publish coordinates. "
+          : null}
         Imported from the DGHS Health Facility Registry. A registry listing does not confirm that a facility is
         operating, that a number still works, or that a bed is free. CIVIS publishes no availability figure it has not
         received from a verified source.

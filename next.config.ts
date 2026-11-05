@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
   // The WASM sqlite driver resolves its own .wasm file relative to its package
   // directory at runtime, so it must not be bundled by Turbopack.
   serverExternalPackages: ["node-sqlite3-wasm"],
+  // The database reads its schema files and seed at runtime, so they must be
+  // packaged with the server function explicitly.
+  outputFileTracingIncludes: {
+    "/*": [
+      "./lib/**/*.sql",
+      "./.vercel/sqlite/civis-seeded.db",
+      "./node_modules/node-sqlite3-wasm/dist/**/*",
+    ],
+  },
   experimental: {
     optimizePackageImports: ["recharts", "lucide-react"],
   },
