@@ -17,6 +17,8 @@ export default function FacilityMap({ location, facilities, selectedId, onSelect
   const [ready, setReady] = useState(false);
   const [tileError, setTileError] = useState(false);
   callbacks.current = { onSelect, onFailure };
+  const facilitiesRef = useRef(facilities);
+  facilitiesRef.current = facilities;
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +33,10 @@ export default function FacilityMap({ location, facilities, selectedId, onSelect
         attachBasemapFallback(instance);
         instance.addControl(new library.NavigationControl(), "bottom-left");
         instance.addControl(new library.ScaleControl({ unit: "metric" }), "bottom-left");
-        instance.on("error", () => { if (!cancelled) setTileError(true); });
+        instance.on("error", (event) => {
+          const message = (event as unknown as { error?: { message?: string } }).error?.message ?? "";
+          if (!cancelled && /tile|style|openfreemap|arcgis/i.test(message)) setTileError(true);
+        });
         const canvas = instance.getCanvas();
         const lost = (event: Event) => { event.preventDefault(); if (!cancelled) callbacks.current.onFailure(); };
         canvas.addEventListener("webglcontextlost", lost);
@@ -40,6 +45,18 @@ export default function FacilityMap({ location, facilities, selectedId, onSelect
           if (!instance || cancelled) return;
           instance.addSource("hospital-route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
           instance.addLayer({ id: "hospital-route", type: "line", source: "hospital-route", paint: { "line-color": "#36d9ff", "line-width": 4, "line-opacity": 0.85 } });
+          // Facilities are drawn as one GPU layer rather than hundreds of DOM
+          // markers, which kept the map smooth when panning and selecting.
+          instance.addSource("facilities", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+          instance.addLayer({ id: "facility-points", type: "circle", source: "facilities", paint: { "circle-color": ["get", "color"] as never, "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 5, 16, 10] as never, "circle-stroke-color": "#08101c", "circle-stroke-width": 1.5 } });
+          instance.addLayer({ id: "facility-selected", type: "circle", source: "facilities", filter: ["==", ["get", "id"], ""], paint: { "circle-color": "rgba(0,0,0,0)", "circle-radius": 15, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.5 } });
+          instance.on("click", "facility-points", (event) => {
+            const id = String(event.features?.[0]?.properties?.id ?? "");
+            const facility = facilitiesRef.current.find((item) => item.id === id);
+            if (facility) callbacks.current.onSelect(facility);
+          });
+          instance.on("mouseenter", "facility-points", () => { if (instance) instance.getCanvas().style.cursor = "pointer"; });
+          instance.on("mouseleave", "facility-points", () => { if (instance) instance.getCanvas().style.cursor = ""; });
           setReady(true);
         });
       } catch { if (!cancelled) callbacks.current.onFailure(); }
@@ -49,33 +66,42 @@ export default function FacilityMap({ location, facilities, selectedId, onSelect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The search location keeps a DOM marker; it is a single element.
   useEffect(() => {
     const instance = map.current;
     if (!instance || !ready) return;
     let cancelled = false;
-    markers.current.forEach((marker) => marker.remove());
-    markers.current = [];
     (async () => {
       const library = await loadMaplibre();
       if (cancelled) return;
+      markers.current.forEach((marker) => marker.remove());
       const pin = document.createElement("div");
       pin.className = "facility-map-location";
       pin.setAttribute("aria-label", "Selected search location");
-      markers.current.push(new library.Marker({ element: pin }).setLngLat([location.lng, location.lat]).addTo(instance));
-      for (const facility of facilities) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `facility-map-pin${selectedId === facility.id ? " selected" : ""}`;
-        button.style.setProperty("--pin-color", FACILITY_COLORS[facility.kind]);
-        button.textContent = facility.kind === "hospital" || facility.kind === "clinic" ? "+" : facility.kind === "fire" ? "F" : facility.kind === "police" ? "P" : "A";
-        button.title = facility.name;
-        button.setAttribute("aria-label", `View ${facility.name}`);
-        button.addEventListener("click", () => callbacks.current.onSelect(facility));
-        markers.current.push(new library.Marker({ element: button }).setLngLat([facility.lng, facility.lat]).addTo(instance));
-      }
+      markers.current = [new library.Marker({ element: pin }).setLngLat([location.lng, location.lat]).addTo(instance)];
     })();
     return () => { cancelled = true; };
-  }, [facilities, location, selectedId, ready]);
+  }, [location.lat, location.lng, ready]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready) return;
+    const source = instance.getSource("facilities") as GeoJSONSource | undefined;
+    source?.setData({
+      type: "FeatureCollection",
+      features: facilities.map((facility) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [facility.lng, facility.lat] },
+        properties: { id: facility.id, color: FACILITY_COLORS[facility.kind] },
+      })),
+    });
+  }, [facilities, ready]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready || !instance.getLayer("facility-selected")) return;
+    instance.setFilter("facility-selected", ["==", ["get", "id"], selectedId ?? ""]);
+  }, [selectedId, ready]);
 
   useEffect(() => {
     if (!ready || !map.current) return;
@@ -94,7 +120,7 @@ export default function FacilityMap({ location, facilities, selectedId, onSelect
 
   useEffect(() => {
     const selected = facilities.find((facility) => facility.id === selectedId);
-    if (selected && map.current && ready && !route) map.current.jumpTo({ center: [selected.lng, selected.lat] });
+    if (selected && map.current && ready && !route) map.current.easeTo({ center: [selected.lng, selected.lat], duration: 400 });
   }, [selectedId, facilities, ready, route]);
 
   return <div className="facility-map-surface"><div ref={container} className="h-full w-full" aria-label="Interactive facility map" />{tileError && <p className="facility-map-notice" role="status">Map tiles unavailable. Facility details and directions remain accessible in the list.</p>}</div>;

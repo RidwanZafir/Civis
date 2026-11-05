@@ -7,6 +7,9 @@ import { useReducedMotion } from "framer-motion";
 import * as THREE from "three";
 import { FACILITY_COLORS, type Facility, type FacilityLocation, type FacilityRoute, type MapGeometry } from "@/lib/emergency/facilities-types";
 
+/** Nearest-first; beyond this the scene gets slow and unreadable. */
+const MAX_MARKERS = 80;
+
 type Project = (lat: number, lng: number) => [number, number, number];
 
 function FacilityMarker({ facility, position, selected, onSelect, reducedMotion }: { facility: Facility; position: [number, number, number]; selected: boolean; onSelect: (facility: Facility) => void; reducedMotion: boolean }) {
@@ -21,9 +24,10 @@ function FacilityMarker({ facility, position, selected, onSelect, reducedMotion 
       <boxGeometry args={[1.4, 1.6, 1.1]} /><meshStandardMaterial color={selected ? "#ffffff" : color} emissive={color} emissiveIntensity={hover || selected ? 0.7 : 0.25} roughness={0.3} metalness={0.25} />
     </mesh>
     <mesh ref={pulse} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}><ringGeometry args={[1.4, 1.8, 40]} /><meshBasicMaterial color={color} transparent opacity={selected ? 0.8 : 0.25} side={THREE.DoubleSide} /></mesh>
-    <Html position={[0, 3, 0]} center zIndexRange={[25, 0]} distanceFactor={70}>
-      <button type="button" onClick={() => onSelect(facility)} className={`facility-scene-label${hover || selected ? " visible" : ""}`} aria-label={`View ${facility.name}`} style={{ borderColor: color }}>{hover || selected ? facility.name : facility.kind === "hospital" || facility.kind === "clinic" ? "+" : facility.kind.slice(0, 1).toUpperCase()}</button>
-    </Html>
+    {/* One HTML overlay per marker is costly; only the active marker gets a label. */}
+    {(hover || selected) && <Html position={[0, 3, 0]} center zIndexRange={[25, 0]} distanceFactor={70}>
+      <button type="button" onClick={() => onSelect(facility)} className="facility-scene-label visible" aria-label={`View ${facility.name}`} style={{ borderColor: color }}>{facility.name}</button>
+    </Html>}
   </group>;
 }
 
@@ -40,7 +44,7 @@ function BuildingOutline({ building, project, scale }: { building: MapGeometry["
 function World({ facilities, location, selectedId, onSelect, geometry, route }: { facilities: Facility[]; location: FacilityLocation; selectedId: string | null; onSelect: (facility: Facility) => void; geometry: MapGeometry; route: FacilityRoute | null }) {
   const reducedMotion = Boolean(useReducedMotion());
   const scale = useMemo(() => {
-    const radius = Math.max(750, ...facilities.map((facility) => facility.distanceKm * 1000));
+    const radius = Math.max(750, ...facilities.slice(0, MAX_MARKERS).map((facility) => facility.distanceKm * 1000));
     return 43 / radius;
   }, [facilities]);
   const project: Project = useMemo(() => (lat, lng) => [(lng - location.lng) * Math.cos(location.lat * Math.PI / 180) * 111320 * scale, 0, -(lat - location.lat) * 111320 * scale], [location, scale]);
@@ -52,7 +56,7 @@ function World({ facilities, location, selectedId, onSelect, geometry, route }: 
     {geometry.roads.filter((road) => road.points.length > 1).map((road) => <Line key={road.id} points={road.points.map((point) => { const [x, , z] = project(point.lat, point.lng); return [x, 0.08, z] as [number, number, number]; })} color="#496174" lineWidth={2} transparent opacity={0.7} />)}
     {geometry.buildings.map((building) => <BuildingOutline key={building.id} building={building} project={project} scale={scale} />)}
     {route && route.points.length > 1 && <Line points={route.points.map((point) => { const [x, , z] = project(point.lat, point.lng); return [x, 0.4, z] as [number, number, number]; })} color="#36d9ff" lineWidth={3} />}
-    {facilities.map((facility) => <FacilityMarker key={facility.id} facility={facility} position={project(facility.lat, facility.lng)} selected={selectedId === facility.id} onSelect={onSelect} reducedMotion={reducedMotion} />)}
+    {facilities.slice(0, MAX_MARKERS).map((facility) => <FacilityMarker key={facility.id} facility={facility} position={project(facility.lat, facility.lng)} selected={selectedId === facility.id} onSelect={onSelect} reducedMotion={reducedMotion} />)}
     <mesh position={[0, 0.8, 0]}><sphereGeometry args={[0.8, 20, 20]} /><meshStandardMaterial color="#f5b94b" emissive="#f5b94b" emissiveIntensity={0.45} /></mesh>
     <Html position={[0, 2.6, 0]} center zIndexRange={[20, 0]}><span className="facility-scene-location">Your search location</span></Html>
     <OrbitControls makeDefault enablePan enableZoom minDistance={15} maxDistance={160} maxPolarAngle={Math.PI / 2.15} />

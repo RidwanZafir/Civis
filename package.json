@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "bash scripts/seed-to-vercel.sh . && next build",
+    "build": "node scripts/copy-maplibre-worker.cjs && bash scripts/seed-to-vercel.sh . && next build",
     "start": "next start",
     "test": "node scripts/upload-regression.mjs && node scripts/upload-inprocess.mjs && node scripts/emergency-communication-test.mjs && node scripts/emergency-facilities-test.mjs && node scripts/emergency-directory-test.mjs && node scripts/emergency-data-smoke.mjs",
     "db:seed": "node --experimental-strip-types scripts/seed.ts",
     "db:reset": "node scripts/reset-db.mjs",
     "map:tiles": "node scripts/map-tiles.mjs",
     "hospitals:import": "node scripts/import-hospital-registry.mjs",
-    "seed:vercel": "bash scripts/seed-to-vercel.sh ."
+    "seed:vercel": "bash scripts/seed-to-vercel.sh .",
+    "predev": "node scripts/copy-maplibre-worker.cjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

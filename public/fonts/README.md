@@ -14,3 +14,7 @@ The fonts are distributed under SIL Open Font License 1.1. See `OFL.txt`.
 
 License source: https://github.com/rsms/inter/blob/master/LICENSE.txt
 Font project: https://rsms.me/inter/
+
+The `.woff2` files in this folder are the Inter variable subsets published in
+the open-source `@fontsource-variable/inter` package (SIL OFL 1.1), saved
+under the file names the stylesheet and layout expect.

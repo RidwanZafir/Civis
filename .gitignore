@@ -16,3 +16,6 @@ public/uploads/*
 .env
 .env.local
 .DS_Store
+
+# generated from node_modules at build time
+public/maplibre/
