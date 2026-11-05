@@ -1,0 +1,41 @@
+.blood-map {
+  width: 100%;
+  height: 380px;
+  background: #0b1018;
+}
+
+.blood-map-pin {
+  --pin-color: #929fb2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 50% 50% 6px;
+  border: 1.5px solid color-mix(in srgb, var(--pin-color) 70%, #000 30%);
+  background: color-mix(in srgb, var(--pin-color) 18%, #0b1018 82%);
+  color: var(--pin-color);
+  font: 600 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transform: rotate(-45deg);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.9);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.blood-map-pin > * {
+  transform: rotate(45deg);
+}
+
+.blood-map-pin:hover,
+.blood-map-pin:focus-visible,
+.blood-map-pin.selected {
+  transform: rotate(-45deg) scale(1.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pin-color) 25%, transparent);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blood-map-pin {
+    transition: none;
+  }
+}

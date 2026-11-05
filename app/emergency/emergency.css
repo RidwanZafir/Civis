@@ -1,0 +1,15 @@
+/* CIVIS Emergency Center: existing app shell; technical palette; incident grid + direct-contact rail.
+   Source: existing globals.css tokens and user brief. Framer Motion respects reduced motion.
+   Critique (1-5): clarity 4, hierarchy 4, specificity 4, restraint 4, variety 4,
+   harmony 4, tone 4, typography 4, spacing 4, preference 4, interaction 4. */
+.emergency-center { --emergency-hover-depth: 0 12px 24px -16px var(--color-accent); }
+.emergency-center section, .emergency-center [id] { scroll-margin-top: 100px; }
+.emergency-tab { transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out; }
+.incident-card { transition: transform 160ms ease-out, background-color 160ms ease-out, border-color 160ms ease-out; transform-origin: center bottom; }
+.emergency-center a, .emergency-center button { touch-action: manipulation; }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .incident-card:hover { transform: perspective(800px) rotateX(3deg) translateY(-2px); box-shadow: var(--emergency-hover-depth); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emergency-center *, .emergency-center *::before, .emergency-center *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
