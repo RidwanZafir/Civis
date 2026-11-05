@@ -1,0 +1,20 @@
+# Vercel build/deploy ignores
+node_modules/.cache
+.next
+out
+build
+*.tsbuildinfo
+.next/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/uploads
+.env
+.env.local
+.env.*.local
+.DS_Store
+.tmp/
+.build-check/
+.build-final/
+.tastemaker/
